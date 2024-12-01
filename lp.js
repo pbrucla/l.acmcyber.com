@@ -9,7 +9,7 @@ const panel_html = `<!DOCTYPE html>
             justify-content: center;
             height: 100%;
         }
-        body, div, h1, form, input, p {
+        body, div, h1, form, input, label, p {
             padding: 0;
             margin: 0;
             outline: none;
@@ -52,6 +52,9 @@ const panel_html = `<!DOCTYPE html>
             margin-top: 10px;
             text-align: center;
         }
+input[type=checkbox] {
+        margin-top: 20px;
+}
         button {
             width: 100%;
             padding: 10px 0;
@@ -74,6 +77,8 @@ const panel_html = `<!DOCTYPE html>
     <form action="/" method="post">
         <input type="url" name="url" id="url" placeholder="URL" required/>
         <input type="text" name="path" id="path" placeholder="case/insensitive/path/for/redirect" required/>
+        <input type="checkbox" name="overwrite" id="overwrite" />
+        <label for="overwrite">Overwrite existing URL</label>
         <div class="btn-block">
             <button type="submit" href="/">Submit</button>
         </div>
@@ -101,6 +106,11 @@ async function is_valid_path(path) {
 	const path_regex = /^[-a-zA-Z0-9_.+/]+$/gm;
 	return path_regex.test(path);
 }
+
+async function check_existing_path(path) {
+	return await LINKS.get(`/${path}`);
+}
+
 /**
  * readRequestBody reads in the incoming request body
  * Use await readRequestBody(..) in an async function to get the string
@@ -146,6 +156,16 @@ async function handleRequest(request) {
 		console.log(
 			`Request from ${request.headers.get('CF-Connecting-IP')}: Shorten URL '${req['url']}' to '/${req['path']}`
 		);
+    if (!('overwrite' in req)) {
+      const existing = await check_existing_path(req['path']);
+      if (existing) {
+        return new Response(
+          `{"status":409,"msg":"The path already exists, and overwriting is disabled."}`,
+          { headers: json_response_header }
+        );
+      }
+    }
+
 		const stat = await save_url(req['url'], req['path']);
 		if (stat === undefined) {
 			return new Response(`{"status":200,"url":"https://l.acmcyber.com/${req['path']}"}`, {
